@@ -7,6 +7,7 @@
 
 export type StockReportType = 'simple' | 'detailed' | 'full' | 'brief';
 export type ReportType = StockReportType | 'market_review';
+export type AnalysisPhase = 'auto' | 'premarket' | 'intraday' | 'postmarket';
 
 export interface AnalysisRequest {
   stockCode?: string;
@@ -14,6 +15,7 @@ export interface AnalysisRequest {
   reportType?: StockReportType;
   forceRefresh?: boolean;
   asyncMode?: boolean;
+  analysisPhase?: AnalysisPhase;
   stockName?: string;
   originalQuery?: string;
   selectionSource?: 'manual' | 'autocomplete' | 'import' | 'image';
@@ -37,6 +39,31 @@ export interface MarketReviewAccepted {
 
 export type ReportLanguage = 'zh' | 'en';
 
+export type MarketPhaseValue =
+  | 'premarket'
+  | 'intraday'
+  | 'lunch_break'
+  | 'closing_auction'
+  | 'postmarket'
+  | 'non_trading'
+  | 'unknown';
+
+export interface MarketPhaseSummary {
+  market?: string | null;
+  phase: MarketPhaseValue;
+  marketLocalTime?: string | null;
+  sessionDate?: string | null;
+  effectiveDailyBarDate?: string | null;
+  isTradingDay?: boolean | null;
+  isMarketOpenNow?: boolean | null;
+  isPartialBar?: boolean | null;
+  minutesToOpen?: number | null;
+  minutesToClose?: number | null;
+  triggerSource?: string | null;
+  analysisIntent?: string | null;
+  warnings: string[];
+}
+
 /** Report metadata */
 export interface ReportMeta {
   id?: number;  // Analysis history record ID, present for persisted reports
@@ -48,7 +75,8 @@ export interface ReportMeta {
   createdAt: string;
   currentPrice?: number;
   changePct?: number;
-  modelUsed?: string;  // LLM model used for analysis
+  modelUsed?: string;  // Display-only model snapshot from persisted history; not used for runtime model selection
+  marketPhaseSummary?: MarketPhaseSummary | null;
 }
 
 /** Sentiment label */
@@ -104,7 +132,8 @@ export type AnalysisContextPackBlockStatus =
   | 'fallback'
   | 'stale'
   | 'estimated'
-  | 'partial';
+  | 'partial'
+  | 'fetch_failed';
 
 export interface AnalysisContextPackOverviewSubject {
   code: string;
@@ -129,11 +158,21 @@ export interface AnalysisContextPackOverviewCounts {
   stale: number;
   estimated: number;
   partial: number;
+  fetchFailed: number;
 }
 
 export interface AnalysisContextPackOverviewMetadata {
   triggerSource?: string | null;
   newsResultCount?: number | null;
+}
+
+export type AnalysisContextPackDataQualityLevel = 'good' | 'usable' | 'limited' | 'poor';
+
+export interface AnalysisContextPackOverviewDataQuality {
+  overallScore?: number | null;
+  level?: AnalysisContextPackDataQualityLevel | null;
+  blockScores: Record<string, number>;
+  limitations: string[];
 }
 
 export interface AnalysisContextPackOverview {
@@ -142,6 +181,7 @@ export interface AnalysisContextPackOverview {
   subject: AnalysisContextPackOverviewSubject;
   blocks: AnalysisContextPackOverviewBlock[];
   counts: AnalysisContextPackOverviewCounts;
+  dataQuality?: AnalysisContextPackOverviewDataQuality | null;
   warnings: string[];
   metadata: AnalysisContextPackOverviewMetadata;
 }
@@ -216,6 +256,7 @@ export interface TaskAccepted {
   traceId?: string;
   status: 'pending' | 'processing';
   message?: string;
+  analysisPhase?: AnalysisPhase;
 }
 
 export interface BatchTaskAcceptedItem {
@@ -224,6 +265,7 @@ export interface BatchTaskAcceptedItem {
   stockCode: string;
   status: 'pending' | 'processing';
   message?: string;
+  analysisPhase?: AnalysisPhase;
 }
 
 export interface BatchDuplicateTaskItem {
@@ -254,6 +296,7 @@ export interface TaskStatus {
   stockName?: string;
   originalQuery?: string;
   selectionSource?: string;
+  analysisPhase?: AnalysisPhase | null;
   skills?: string[];
 }
 
@@ -273,6 +316,8 @@ export interface TaskInfo {
   error?: string;
   originalQuery?: string;
   selectionSource?: string;
+  analysisPhase?: AnalysisPhase;
+  skills?: string[];
 }
 
 /** Task list response */
@@ -300,9 +345,25 @@ export interface HistoryItem {
   stockCode: string;
   stockName?: string;
   reportType?: ReportType;
+  trendPrediction?: string;
+  analysisSummary?: string;
   sentimentScore?: number;
   operationAdvice?: string;
+  currentPrice?: number;
+  changePct?: number;
+  volumeRatio?: number;
+  turnoverRate?: number;
+  modelUsed?: string;  // Display-only model snapshot from persisted history; runtime provider/model/base URL still come from analyzer configuration
+  marketPhaseSummary?: MarketPhaseSummary | null;
   createdAt: string;
+}
+
+export type StockHistoryRange = 'all' | '30d' | '90d';
+
+export interface StockHistoryFilters {
+  range: StockHistoryRange;
+  model: string;
+  sort: 'desc' | 'asc';
 }
 
 /** History list response */
@@ -337,6 +398,26 @@ export interface HistoryFilters {
 export interface HistoryPagination {
   page: number;
   limit: number;
+}
+
+// ============ Stock Bar Types ============
+
+export interface StockBarItem {
+  id: number;
+  stockCode: string;
+  stockName?: string;
+  reportType?: string;
+  sentimentScore?: number;
+  operationAdvice?: string;
+  analysisCount: number;
+  lastAnalysisTime?: string;
+  modelUsed?: string;
+  marketPhaseSummary?: MarketPhaseSummary | null;
+}
+
+export interface StockBarResponse {
+  total: number;
+  items: StockBarItem[];
 }
 
 // ============ Error Types ============
